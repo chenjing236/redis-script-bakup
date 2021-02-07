@@ -1,0 +1,58 @@
+#!/bin/bash
+ConfigFilePath="/home/config/config_template.json"
+
+function writelog()
+{
+time=`date +"%F %T.%N"`
+echo "[$time] [$$] $@" >>${LOG}
+}
+
+function checkAndReplace()
+{
+EnvArray=($PRESET_PIN $PRESET_ACCESS_KEY $PRESET_SECRET_KEY $PRESET_APIGW_URL $PRESET_REGION $PRESET_AZ $PRESET_VPC $PRESET_SUBNET)
+ReplaceArray=("{User}" "{AccessKey}" "{SecretKey}" "{GateWay}" "{Region}" "{AzId}" "{VpcId}" "{SubnetId}" )
+for (( i = 0 ; i < ${#EnvArray[@]} ; i++ ))
+do
+if [ -z ${EnvArray[$i]} ];then
+echo writelog "[Error]" "${EnvArray[$i]} not exists"
+exit 1
+else
+sed -i s/${ReplaceArray[$i]}/${EnvArray[$i]}/ $ConfigFilePath
+fi
+done
+if [ -z $PRESET_REPORT_DIRECTORY ];then
+echo writelog "[Error]" "PRESET_REPORT_DIRECTORY not exists"
+exit 1
+fi
+if [ -z $PRESET_LOG_DIRECTORY ];then
+echo writelog "[Error]" "PRESET_LOG_DIRECTORY not exists"
+exit 1
+fi
+}
+
+function startEsTest() {
+cd /home/jmiss-automation-test/jmiss_es
+pytest -x -m stability --config=$ConfigFilePath --junitxml=$PRESET_REPORT_DIRECTORY/es_report.xml > $PRESET_LOG_DIRECTORY/es.log 2>&1
+}
+
+function startZkTest() {
+cd /home/jmiss-automation-test/jmiss_zk
+pytest -x --config=$ConfigFilePath --junitxml=$PRESET_REPORT_DIRECTORY/zk_report.xml > $PRESET_LOG_DIRECTORY/zk.log 2>&1
+}
+
+#debug
+source /home/test_env
+
+checkAndReplace
+
+case "$1" in
+es_test)
+startEsTest
+;;
+zk_test)
+startZkTest
+;;
+*)
+echo $"Usage: $0 {zk_test|es_test}"
+exit 1
+esac
